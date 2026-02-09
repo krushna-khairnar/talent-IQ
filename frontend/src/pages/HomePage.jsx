@@ -9,6 +9,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { SignInButton } from "@clerk/clerk-react";
+import Footer from "../components/Footer";
 
 function HomePage() {
   return (
@@ -175,6 +176,13 @@ function HomePage() {
             </div>
           </div>
         </div>
+
+        <br></br>
+        <br></br>
+        <br></br>
+
+        {/* Footer */}
+        <Footer/>
       </div>
     </div>
   );
