@@ -14,6 +14,7 @@ function useStreamClient(session, loadingSession, isHost, isParticipant) {
   useEffect(() => {
     let videoCall = null;
     let chatClientInstance = null;
+    let cancelled = false;
 
     const initCall = async () => {
       if (!session?.callId) return;
@@ -24,6 +25,8 @@ function useStreamClient(session, loadingSession, isHost, isParticipant) {
         const { token, userId, userName, userImage } =
           await sessionApi.getStreamToken();
 
+        if (cancelled) return;
+
         const client = await initializeStreamClient(
           {
             id: userId,
@@ -33,10 +36,15 @@ function useStreamClient(session, loadingSession, isHost, isParticipant) {
           token
         );
 
+        if (cancelled) return;
+
         setStreamClient(client);
 
         videoCall = client.call("default", session.callId);
         await videoCall.join({ create: true });
+
+        if (cancelled) return;
+
         setCall(videoCall);
 
         const apiKey = import.meta.env.VITE_STREAM_API_KEY;
@@ -50,6 +58,9 @@ function useStreamClient(session, loadingSession, isHost, isParticipant) {
           },
           token
         );
+
+        if (cancelled) return;
+
         setChatClient(chatClientInstance);
 
         const chatChannel = chatClientInstance.channel(
@@ -57,20 +68,24 @@ function useStreamClient(session, loadingSession, isHost, isParticipant) {
           session.callId
         );
         await chatChannel.watch();
+
+        if (cancelled) return;
+
         setChannel(chatChannel);
       } catch (error) {
-        toast.error("Failed to join video call");
-        console.error("Error init call", error);
+        if (!cancelled) {
+          toast.error("Failed to join video call");
+          console.error("Error init call", error);
+        }
       } finally {
-        setIsInitializingCall(false);
+        if (!cancelled) setIsInitializingCall(false);
       }
     };
 
     if (session && !loadingSession) initCall();
 
-    // cleanup - performance reasons
     return () => {
-      // iife
+      cancelled = true;
       (async () => {
         try {
           if (videoCall) await videoCall.leave();
