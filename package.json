@@ -2,9 +2,8 @@
   "name": "talentiq",
   "version": "1.0.0",
   "scripts": {
-    "install-backend": "cd backend && npm install",
-    "install-frontend": "cd frontend && npm install",
-    "build-frontend": "cd frontend && npm run build",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
     "start": "cd backend && npm start"
   }
 }
