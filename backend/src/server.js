@@ -51,7 +51,7 @@ app.use(express.json());
 app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
 app.use(clerkMiddleware());
 
-// API routes
+// API routes - these must come BEFORE static file serving
 app.use("/api/inngest", serve({ client: inngest, functions }));
 app.use("/api/chat", chatRoutes);
 app.use("/api/sessions", sessionRoutes);
@@ -60,14 +60,15 @@ app.get("/health", (req, res) => {
   res.status(200).json({ msg: "api is up and running" });
 });
 
-// Production - serve frontend
+// Production - serve frontend (MUST be last)
 if (ENV.NODE_ENV === "production") {
   const frontendPath = path.join(__dirname, "../frontend/dist");
   
+  // Serve static files
   app.use(express.static(frontendPath));
 
-  // Catch all - must be last
-  app.get("*", (req, res) => {
+  // Catch-all: send index.html for any route not matched above
+  app.use((req, res) => {
     res.sendFile(path.join(frontendPath, "index.html"));
   });
 }
