@@ -10,7 +10,7 @@ import { connectDB } from "./lib/db.js";
 import { inngest, functions } from "./lib/inngest.js";
 
 import chatRoutes from "./routes/chatRoutes.js";
-import sessionRoutes from "./routes/sessionRoute.js";
+import sessionRoute from "./routes/sessionRoute.js";
 
 const app = express();
 
@@ -29,7 +29,13 @@ app.post(
         "svix-signature": req.headers["svix-signature"],
       };
 
-      const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
+      // Check if headers exist
+      if (!headers["svix-id"] || !headers["svix-timestamp"] || !headers["svix-signature"]) {
+        console.error("Missing svix headers:", req.headers);
+        return res.status(400).json({ error: "Missing required webhook headers" });
+      }
+
+      const wh = new Webhook(ENV.CLERK_WEBHOOK_SECRET); // Use ENV instead of process.env
       const evt = wh.verify(payload, headers);
 
       // Send event to Inngest
@@ -54,7 +60,7 @@ app.use(clerkMiddleware());
 // API routes - these must come BEFORE static file serving
 app.use("/api/inngest", serve({ client: inngest, functions }));
 app.use("/api/chat", chatRoutes);
-app.use("/api/sessions", sessionRoutes);
+app.use("/api/sessions", sessionRoute);
 
 app.get("/health", (req, res) => {
   res.status(200).json({ msg: "api is up and running" });
