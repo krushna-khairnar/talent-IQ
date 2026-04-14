@@ -35,7 +35,13 @@ app.post(
         return res.status(400).json({ error: "Missing required webhook headers" });
       }
 
-      const wh = new Webhook(ENV.CLERK_WEBHOOK_SECRET); // Use ENV instead of process.env
+      const webhookSecret = ENV.CLERK_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.error("CLERK_WEBHOOK_SECRET is not set in environment variables");
+        return res.status(500).json({ error: "Webhook secret not configured" });
+      }
+
+      const wh = new Webhook(webhookSecret);
       const evt = wh.verify(payload, headers);
 
       // Send event to Inngest
@@ -78,6 +84,19 @@ if (ENV.NODE_ENV === "production") {
     res.sendFile(path.join(frontendPath, "index.html"));
   });
 }
+
+// Global error handler — Express 5 throws errors from middleware (e.g. requireAuth)
+// instead of calling next(err), so we need this to turn them into proper JSON responses
+app.use((err, req, res, next) => {
+  console.error("Global error handler:", err.message || err);
+
+  // Clerk auth errors
+  if (err.status === 401 || err.clerkError || err.message?.toLowerCase().includes("unauthenticated")) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  res.status(err.status || 500).json({ message: err.message || "Internal Server Error" });
+});
 
 const startServer = async () => {
   try {

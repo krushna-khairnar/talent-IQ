@@ -5,7 +5,9 @@ export const protectRoute = [
   requireAuth(),
   async (req, res, next) => {
     try {
-      const clerkId = req.auth.userId;
+      // @clerk/express v1+: req.auth is a function, not an object
+      const auth = typeof req.auth === "function" ? req.auth() : req.auth;
+      const clerkId = auth?.userId;
 
       if (!clerkId)
         return res
@@ -13,9 +15,48 @@ export const protectRoute = [
           .json({ message: "Unauthorized - invalid token" });
 
       // find user in db by clerk ID
-      const user = await User.findOne({ clerkId });
+      let user = await User.findOne({ clerkId });
 
-      if (!user) return res.status(404).json({ message: "User not found" });
+      // If the user doesn't exist yet (webhook may be delayed),
+      // fetch their info from Clerk and create them on the fly
+      if (!user) {
+        try {
+          const { createClerkClient } = await import("@clerk/express");
+          // Build a Clerk backend client using the secret key
+          const clerkClient = createClerkClient({
+            secretKey: process.env.CLERK_SECRET_KEY,
+          });
+
+          const clerkUser = await clerkClient.users.getUser(clerkId);
+
+          const name =
+            `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim() ||
+            clerkUser.emailAddresses[0]?.emailAddress ||
+            "Unknown";
+
+          user = await User.findOneAndUpdate(
+            { clerkId },
+            {
+              clerkId,
+              email: clerkUser.emailAddresses[0]?.emailAddress,
+              name,
+              profileImage: clerkUser.imageUrl,
+            },
+            { upsert: true, new: true }
+          );
+
+          // Also sync to Stream
+          const { upsertStreamUser } = await import("../lib/stream.js");
+          await upsertStreamUser({
+            id: clerkId,
+            name: user.name,
+            image: user.profileImage,
+          });
+        } catch (clerkError) {
+          console.error("Error creating user from Clerk:", clerkError);
+          return res.status(404).json({ message: "User not found" });
+        }
+      }
 
       // attach user to req
       req.user = user;
